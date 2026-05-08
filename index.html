@@ -25,7 +25,6 @@
             line-height: 1.4;
         }
         .global-stats b { color: var(--gold); }
-        .stat-line { display: block; margin-bottom: 2px; }
 
         input { padding: 10px; width: 140px; border-radius: 5px; border: 1px solid var(--gold); background: rgba(0,0,0,0.5); color: white; outline: none; }
         
@@ -37,7 +36,7 @@
 
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 15px; overflow-y: auto; flex: 1; }
         
-        .folder { background: rgba(255,255,255,0.05); border: 1px solid var(--gold); padding: 12px; border-radius: 10px; text-align: center; cursor: pointer; position: relative; }
+        .folder { background: rgba(255,255,255,0.05); border: 1px solid var(--gold); padding: 12px; border-radius: 10px; text-align: center; cursor: pointer; }
         .folder-stats { font-size: 10px; color: var(--green); margin-top: 5px; font-weight: bold; }
         .progress-bar { height: 4px; background: #333; border-radius: 2px; margin-top: 5px; overflow: hidden; }
         .progress-fill { height: 100%; background: var(--green); width: 0%; transition: 0.3s; }
@@ -52,6 +51,13 @@
         
         #scannerOverlay { display: none; position: fixed; inset: 0; background: black; z-index: 1000; flex-direction: column; }
         video { width: 100%; height: 100%; object-fit: cover; }
+        
+        .scan-box {
+            position: absolute; top: 20%; left: 10%; width: 80%; height: 40%;
+            border: 2px solid var(--green); border-radius: 15px; box-shadow: 0 0 0 1000px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+
         .series-header-sticky { background: rgba(0,0,0,0.9); border-bottom: 1px solid var(--gold); padding: 10px; text-align: center; position: sticky; top: 0; z-index: 5; display: none; }
         #scanModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000; align-items: center; justify-content: center; padding: 20px; }
         .modal-content { background: #1a1a1a; border: 2px solid var(--gold); border-radius: 15px; max-width: 400px; width: 100%; padding: 20px; text-align: center; }
@@ -60,7 +66,7 @@
 <body>
 
 <div class="header">
-    <div id="statsGlobal" class="global-stats">Chargement...</div>
+    <div id="statsGlobal" class="global-stats">Initialisation...</div>
     <div class="nav-container">
         <input type="text" id="searchInput" placeholder="Nom ou Code..." onkeyup="if(event.key === 'Enter') manualSearch()">
         <button class="btn-blue" onclick="manualSearch()">🔍</button>
@@ -72,9 +78,11 @@
 
 <div id="scannerOverlay">
     <video id="video" autoplay playsinline></video>
+    <div class="scan-box"></div>
+    <div id="scanStatus" style="position:absolute; top:10%; width:100%; text-align:center; color:var(--gold); font-weight:bold;">CADREZ LE NOM DE LA CARTE</div>
     <div style="position:absolute; bottom:30px; width:100%; text-align:center;">
-        <button class="btn-green" onclick="captureAndScan()" style="padding:15px 30px;">ANALYSER</button>
-        <button class="btn-gold" onclick="stopScanner()" style="background:var(--red); padding:15px 30px; margin-left:10px;">FERMER</button>
+        <button id="btnCapture" class="btn-green" onclick="captureAndScan()" style="padding:15px 40px; font-size:16px;">ANALYSER</button>
+        <button class="btn-gold" onclick="stopScanner()" style="background:var(--red); padding:15px 40px; margin-left:10px;">FERMER</button>
     </div>
     <canvas id="canvas" style="display:none;"></canvas>
 </div>
@@ -90,7 +98,6 @@
 
 <script>
     let db = [];
-    let totalSeriesGlobal = 0;
     let myCol = JSON.parse(localStorage.getItem('ygo_stats_v12')) || {};
     let camera = null;
 
@@ -99,60 +106,127 @@
             const r = await fetch('https://db.ygoprodeck.com/api/v7/cardinfo.php');
             const data = await r.json();
             db = data.data;
-            
-            let tempSets = new Set();
-            db.forEach(c => c.card_sets?.forEach(s => tempSets.add(s.set_code.split('-')[0])));
-            totalSeriesGlobal = tempSets.size;
-
             updateGlobalStats();
             showAllFolders();
-        } catch(e) { 
-            document.getElementById('statsGlobal').innerText = "Erreur réseau.";
-        }
+        } catch(e) { console.error(e); }
     };
 
     function updateGlobalStats() {
-        const totalExistantes = db.length;
         const uniqueIdsOwned = new Set();
         Object.keys(myCol).forEach(key => uniqueIdsOwned.add(key.split('||')[0]));
-        const totalExemplaires = Object.values(myCol).reduce((a,b) => a + b.qty, 0);
+        document.getElementById('statsGlobal').innerHTML = `🃏 Cartes uniques : <b>${uniqueIdsOwned.size}</b> / ${db.length} | ⭐ Total : <b>${Object.values(myCol).reduce((a,b) => a + b.qty, 0)}</b>`;
+    }
 
-        document.getElementById('statsGlobal').innerHTML = `
-            <span class="stat-line">📂 Séries totales : <b>${totalSeriesGlobal}</b></span>
-            <span class="stat-line">🃏 Uniques : <b>${uniqueIdsOwned.size}</b> / ${totalExistantes}</span>
-            <span class="stat-line">⭐ Ma collection : <b>${totalExemplaires}</b> cartes</span>
+    // --- LOGIQUE SCANNER AMÉLIORÉE ---
+    function startScanner() {
+        document.getElementById('scannerOverlay').style.display = 'flex';
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(s => {
+            camera = s; document.getElementById('video').srcObject = s;
+        });
+    }
+
+    function stopScanner() {
+        if(camera) camera.getTracks().forEach(t => t.stop());
+        document.getElementById('scannerOverlay').style.display = 'none';
+    }
+
+    async function captureAndScan() {
+        const v = document.getElementById('video');
+        const c = document.getElementById('canvas');
+        const status = document.getElementById('scanStatus');
+        const btn = document.getElementById('btnCapture');
+
+        btn.disabled = true;
+        status.innerText = "ANALYSE EN COURS...";
+
+        const ctx = c.getContext('2d');
+        c.width = v.videoWidth; c.height = v.videoHeight;
+        ctx.filter = 'contrast(1.4) grayscale(1)';
+        ctx.drawImage(v, 0, 0);
+
+        try {
+            const res = await Tesseract.recognize(c, 'eng+fra');
+            const txt = res.data.text.toUpperCase();
+            console.log("Texte scanné:", txt);
+
+            // Recherche avancée
+            let found = db.find(card => {
+                const cardName = card.name.toUpperCase();
+                // Si le nom scanné contient le nom de la carte (min 4 lettres)
+                return cardName.length > 4 && txt.includes(cardName);
+            });
+
+            if(found) {
+                stopScanner();
+                showConfirmModal(found);
+            } else {
+                status.innerText = "NON RECONNU - RÉESSAYEZ";
+                setTimeout(() => { status.innerText = "CADREZ LE NOM DE LA CARTE"; btn.disabled = false; }, 2000);
+            }
+        } catch(e) {
+            alert("Erreur de scan");
+            btn.disabled = false;
+        }
+    }
+
+    function showConfirmModal(card) {
+        const m = document.getElementById('scanModal');
+        const b = document.getElementById('modalBody');
+        m.style.display = 'flex';
+        
+        const set = card.card_sets ? card.card_sets[0] : { set_code: "N/A", set_name: "Inconnue" };
+        
+        b.innerHTML = `
+            <img src="${card.card_images[0].image_url}" style="width:100%; border-radius:10px; margin-bottom:15px;">
+            <h3 style="color:var(--gold); margin:0;">${card.name}</h3>
+            <p style="font-size:12px; margin:10px 0;">Série suggérée : ${set.set_code}</p>
+            
+            <button class="btn-green" style="width:100%; padding:15px; font-size:14px;" 
+                onclick="addFromScan('${card.id}','${set.set_code}','${card.name.replace(/'/g,"\\'")}','${card.card_images[0].image_url_small}')">
+                ✅ AJOUTER AU CLASSEUR
+            </button>
+            
+            <button class="btn-purple" style="width:100%; padding:12px; margin-top:10px;" 
+                onclick="goToSetFromCard('${set.set_code}'); document.getElementById('scanModal').style.display='none'">
+                👁️ VOIR TOUTE LA SÉRIE
+            </button>
+            
+            <button class="btn-gold" style="width:100%; background:var(--red); color:white; margin-top:10px;" 
+                onclick="document.getElementById('scanModal').style.display='none'">
+                ❌ ANNULER
+            </button>
         `;
     }
 
+    function addFromScan(id, code, name, img) {
+        adjust(id, code, 1, name, img);
+        document.getElementById('scanModal').style.display = 'none';
+        viewCollection();
+    }
+
+    // --- LE RESTE DES FONCTIONS (RECHERCHE, SÉRIES, ETC.) ---
     function showAllFolders() {
-        updateGlobalStats();
         document.getElementById('seriesHeader').style.display = "none";
         const g = document.getElementById('mainGrid'); g.innerHTML = "";
-        
         let setsInfo = {};
         db.forEach(c => c.card_sets?.forEach(s => {
             const code = s.set_code.split('-')[0];
             if(!setsInfo[code]) setsInfo[code] = { name: s.set_name, total: 0, owned: new Set() };
             setsInfo[code].total++;
         }));
-
         Object.keys(myCol).forEach(key => {
             const [id, code] = key.split('||');
             const prefix = code.split('-')[0];
             if(setsInfo[prefix]) setsInfo[prefix].owned.add(id);
         });
-
         Object.keys(setsInfo).sort().forEach(code => {
             const info = setsInfo[code];
             const percent = Math.round((info.owned.size / info.total) * 100) || 0;
             const d = document.createElement('div'); d.className = 'folder';
             d.onclick = () => openSeries(code, info.name);
-            d.innerHTML = `
-                <strong>${code}</strong><br>
-                <small style="font-size:9px; opacity:0.8;">${info.name}</small>
-                <div class="folder-stats">${info.owned.size} / ${info.total}</div>
-                <div class="progress-bar"><div class="progress-fill" style="width:${percent}%"></div></div>
-            `;
+            d.innerHTML = `<strong>${code}</strong><br><small style="font-size:9px;">${info.name}</small>
+            <div class="folder-stats">${info.owned.size} / ${info.total}</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${percent}%"></div></div>`;
             g.appendChild(d);
         });
     }
@@ -163,10 +237,8 @@
         const g = document.getElementById('mainGrid'); g.innerHTML = "";
         db.filter(c => c.card_sets?.some(s => s.set_code.startsWith(code + "-")))
           .forEach(card => renderCard(card, card.card_sets.filter(s => s.set_code.startsWith(code + "-"))));
-        g.scrollTo(0,0);
     }
 
-    // Cette fonction est maintenant utilisée partout (recherche et dossiers)
     function renderCard(card, sets) {
         const g = document.getElementById('mainGrid');
         const d = document.createElement('div'); d.className = 'card';
@@ -188,6 +260,20 @@
         g.appendChild(d);
     }
 
+    function adjust(id, code, delta, name, img) {
+        const k = id + "||" + code;
+        if(!myCol[k]) myCol[k] = { id, code, name, img, qty: 0 };
+        myCol[k].qty += delta;
+        if(myCol[k].qty <= 0) delete myCol[k];
+        localStorage.setItem('ygo_stats_v12', JSON.stringify(myCol));
+        const disp = document.getElementById('q-' + k.replace('||','-'));
+        if(disp) {
+            disp.innerText = myCol[k]?.qty || 0;
+            disp.closest('.version-row').classList.toggle('owned', (myCol[k]?.qty > 0));
+        }
+        updateGlobalStats();
+    }
+
     function goToSetFromCard(setCode) {
         const prefix = setCode.split('-')[0];
         let name = prefix;
@@ -199,36 +285,9 @@
         const q = document.getElementById('searchInput').value.toUpperCase().trim();
         if(!q) return;
         document.getElementById('seriesHeader').style.display = "block";
-        document.getElementById('currentSeriesName').innerText = "RÉSULTATS : " + q;
         const g = document.getElementById('mainGrid'); g.innerHTML = "";
-        
-        let count = 0;
-        db.forEach(c => {
-            if(count < 50) { // Limite pour performance
-                const matchName = c.name.toUpperCase().includes(q);
-                const matchSet = c.card_sets && c.card_sets.some(s => s.set_code.toUpperCase().includes(q));
-                
-                if(matchName || matchSet) {
-                    renderCard(c, c.card_sets || []);
-                    count++;
-                }
-            }
-        });
-    }
-
-    function adjust(id, code, delta, name, img) {
-        const k = id + "||" + code;
-        if(!myCol[k]) myCol[k] = { id, code, name, img, qty: 0 };
-        myCol[k].qty += delta;
-        if(myCol[k].qty <= 0) delete myCol[k];
-        localStorage.setItem('ygo_stats_v12', JSON.stringify(myCol));
-        
-        const disp = document.getElementById('q-' + k.replace('||','-'));
-        if(disp) {
-            disp.innerText = myCol[k]?.qty || 0;
-            disp.closest('.version-row').classList.toggle('owned', (myCol[k]?.qty > 0));
-        }
-        updateGlobalStats();
+        db.filter(c => c.name.toUpperCase().includes(q) || (c.card_sets && c.card_sets.some(s => s.set_code.toUpperCase().includes(q))))
+          .slice(0, 50).forEach(c => renderCard(c, c.card_sets || []));
     }
 
     function viewCollection() {
@@ -238,50 +297,9 @@
         Object.values(myCol).forEach(c => {
             const d = document.createElement('div'); d.className = 'card';
             d.innerHTML = `<img src="${c.img}"><div><b>${c.name}</b></div><div style="color:var(--gold)">${c.code}</div><div style="font-size:18px">x${c.qty}</div>
-            <div style="display:flex; gap:5px; margin-top:5px;">
-                <button onclick="adjust('${c.id}','${c.code}',-1); viewCollection()" style="background:var(--red); color:white; flex:1; padding:8px; border-radius:5px;">SUPPRIMER</button>
-                <button onclick="goToSetFromCard('${c.code}')" style="background:var(--purple); color:white; padding:8px; border-radius:5px;">👁️</button>
-            </div>`;
+            <button onclick="adjust('${c.id}','${c.code}',-1); viewCollection()" style="background:var(--red); color:white; width:100%; margin-top:5px; padding:8px; border-radius:5px;">SUPPRIMER</button>`;
             g.appendChild(d);
         });
-    }
-
-    function startScanner() {
-        document.getElementById('scannerOverlay').style.display = 'flex';
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(s => {
-            camera = s; document.getElementById('video').srcObject = s;
-        });
-    }
-
-    function stopScanner() {
-        if(camera) camera.getTracks().forEach(t => t.stop());
-        document.getElementById('scannerOverlay').style.display = 'none';
-    }
-
-    async function captureAndScan() {
-        const v = document.getElementById('video');
-        const c = document.getElementById('canvas');
-        const ctx = c.getContext('2d');
-        c.width = v.videoWidth; c.height = v.videoHeight;
-        ctx.drawImage(v, 0, 0);
-        const res = await Tesseract.recognize(c, 'eng');
-        const txt = res.data.text.toUpperCase();
-        let found = db.find(card => txt.includes(card.name.toUpperCase()));
-        if(found) { stopScanner(); showConfirmModal(found); }
-    }
-
-    function showConfirmModal(card) {
-        const m = document.getElementById('scanModal');
-        const b = document.getElementById('modalBody');
-        m.style.display = 'flex';
-        const set = card.card_sets ? card.card_sets[0] : { set_code: "???" };
-        b.innerHTML = `
-            <img src="${card.card_images[0].image_url}">
-            <h3>${card.name}</h3>
-            <button class="btn-green" style="width:100%; padding:15px;" onclick="adjust('${card.id}','${set.set_code}',1,'${card.name.replace(/'/g,"\\'")}','${card.card_images[0].image_url_small}'); document.getElementById('scanModal').style.display='none'">AJOUTER</button>
-            <button class="btn-purple" style="width:100%; padding:15px; margin-top:10px;" onclick="goToSetFromCard('${set.set_code}'); document.getElementById('scanModal').style.display='none'">VOIR LA SÉRIE</button>
-            <button class="btn-gold" style="width:100%; background:var(--red); color:white; margin-top:10px;" onclick="document.getElementById('scanModal').style.display='none'">ANNULER</button>
-        `;
     }
 </script>
 </body>
