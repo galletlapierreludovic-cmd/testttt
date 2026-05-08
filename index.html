@@ -72,7 +72,7 @@
 
 <div id="scannerOverlay">
     <video id="video" autoplay playsinline></video>
-    <div id="scanStatus" style="position:absolute; top:10%; width:100%; text-align:center; color:var(--gold); font-weight:bold; background:rgba(0,0,0,0.5);">CADREZ LE NOM OU LE CODE SÉRIE</div>
+    <div id="scanStatus" style="position:absolute; top:10%; width:100%; text-align:center; color:var(--gold); font-weight:bold; background:rgba(0,0,0,0.5);">CADREZ LES 8 CHIFFRES (EN BAS À GAUCHE)</div>
     <div style="position:absolute; bottom:30px; width:100%; text-align:center;">
         <button id="btnCapture" class="btn-green" onclick="captureAndScan()" style="padding:15px 40px; font-size:16px;">ANALYSER</button>
         <button class="btn-gold" onclick="stopScanner()" style="background:var(--red); padding:15px 40px; margin-left:10px;">FERMER</button>
@@ -150,36 +150,46 @@
         const btn = document.getElementById('btnCapture');
 
         btn.disabled = true;
-        status.innerText = "LECTURE...";
+        status.innerText = "LECTURE DU CODE...";
         const ctx = c.getContext('2d');
         c.width = v.videoWidth; c.height = v.videoHeight;
         
-        ctx.filter = 'contrast(2.5) grayscale(1) brightness(0.8)';
+        // Optimisation pour les petits chiffres noirs sur fond clair/foncé
+        ctx.filter = 'contrast(3) grayscale(1) brightness(0.7)';
         ctx.drawImage(v, 0, 0);
 
         try {
-            const res = await Tesseract.recognize(c, 'fra+eng');
-            let txt = res.data.text.toUpperCase().replace(/\s/g, ''); // On enlève les espaces pour mieux matcher les codes
-            
-            // LOGIQUE DE RECHERCHE ULTRA-SOUPLE
-            let found = db.find(card => {
-                // 1. On vérifie les codes séries (LDD-FR001, etc)
-                if(card.card_sets) {
-                    return card.card_sets.some(s => {
-                        let code = s.set_code.toUpperCase();
-                        // On teste le code avec et sans le tiret ou les lettres de pays (FR, EN, IT...)
-                        return txt.includes(code) || txt.includes(code.replace('-FR', '')) || txt.includes(code.replace('-', ''));
-                    });
-                }
-                // 2. On vérifie le nom
-                return card.name.length > 4 && txt.includes(card.name.toUpperCase().replace(/\s/g, ''));
+            // On utilise une whitelist pour forcer Tesseract à ne chercher que des chiffres
+            const res = await Tesseract.recognize(c, 'eng', {
+                tessedit_char_whitelist: '0123456789'
             });
+            
+            let txt = res.data.text.replace(/\s/g, ''); 
+            // On cherche une séquence de 8 chiffres consécutifs
+            let match = txt.match(/\d{8}/);
+            let found = null;
+
+            if (match) {
+                let passcode = match[0].replace(/^0+/, ''); // Enlever les zéros au début pour le match DB
+                found = db.find(card => card.id.toString() === passcode);
+            }
+
+            // Si le code à 8 chiffres échoue, on tente la méthode classique (Nom/Série)
+            if(!found) {
+                let fullTxt = res.data.text.toUpperCase().replace(/\s/g, '');
+                found = db.find(card => {
+                    if(card.card_sets) {
+                        return card.card_sets.some(s => fullTxt.includes(s.set_code.toUpperCase().replace('-', '')));
+                    }
+                    return card.name.length > 5 && fullTxt.includes(card.name.toUpperCase().replace(/\s/g, ''));
+                });
+            }
 
             if(found) {
                 showConfirmModal(found);
             } else {
-                status.innerText = "PAS TROUVÉ. APPROCHEZ LE CODE (SOUS L'IMAGE)";
-                setTimeout(() => { btn.disabled = false; status.innerText = "CADREZ LE NOM OU CODE"; }, 3000);
+                status.innerText = "CODE NON DÉTECTÉ. RAPPROCHEZ LE COIN BAS-GAUCHE";
+                setTimeout(() => { btn.disabled = false; status.innerText = "CADREZ LES 8 CHIFFRES"; }, 3000);
             }
         } catch(e) { btn.disabled = false; }
     }
@@ -193,6 +203,7 @@
         b.innerHTML = `
             <img src="${card.card_images[0].image_url}" style="width:100%; border-radius:10px;">
             <h3 style="color:var(--gold);">${card.name}</h3>
+            <p style="font-size:12px; color:#aaa;">ID: ${card.id}</p>
             <select id="setSel" style="width:100%; padding:10px; margin-bottom:15px; background:#222; color:white; border:1px solid var(--gold);">${setsHTML}</select>
             <button class="btn-green" style="width:100%; padding:15px;" onclick="addFromScan('${card.id}', '${card.name.replace(/'/g," ")}', '${card.card_images[0].image_url_small}')">✅ AJOUTER</button>
             <button class="btn-purple" style="width:100%; margin-top:10px;" onclick="document.getElementById('scanModal').style.display='none'; document.getElementById('btnCapture').disabled=false;">🔄 RÉESSAYER</button>
