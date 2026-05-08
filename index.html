@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YGO Master - GÉANT SCAN PRO (Stats)</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        :root { 
+            --gold: #d4af37; --bg: #050505; --green: #2ecc71; 
+            --blue: #3498db; --red: #e74c3c; --purple: #8e44ad;
+        }
+        
+        body { 
+            font-family: 'Segoe UI', sans-serif; background: radial-gradient(circle at center, #1a0a2e 0%, #050505 100%);
+            color: white; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+
+        .header { background: rgba(0,0,0,0.95); padding: 12px; border-bottom: 3px solid var(--gold); text-align: center; z-index: 10; }
+        .nav-container { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+        
+        /* Stats Bar */
+        .global-stats { background: rgba(212, 175, 55, 0.15); border-radius: 5px; padding: 5px; font-size: 12px; color: var(--gold); margin-bottom: 5px; border: 1px solid var(--gold); }
+
+        input { padding: 10px; width: 140px; border-radius: 5px; border: 1px solid var(--gold); background: rgba(0,0,0,0.5); color: white; outline: none; }
+        
+        button { padding: 10px 12px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; font-size: 11px; }
+        .btn-blue { background: var(--blue); color: white; }
+        .btn-gold { background: var(--gold); color: black; }
+        .btn-green { background: var(--green); color: white; }
+        .btn-purple { background: var(--purple); color: white; }
+
+        /* Grille et Dossiers */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 15px; overflow-y: auto; flex: 1; }
+        
+        .folder { background: rgba(255,255,255,0.05); border: 1px solid var(--gold); padding: 12px; border-radius: 10px; text-align: center; cursor: pointer; position: relative; }
+        .folder-stats { font-size: 10px; color: var(--green); margin-top: 5px; font-weight: bold; }
+        .progress-bar { height: 4px; background: #333; border-radius: 2px; margin-top: 5px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--green); width: 0%; transition: 0.3s; }
+
+        .card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; text-align: center; }
+        .card img { width: 100%; border-radius: 5px; }
+
+        .version-row { padding: 8px; background: rgba(255,255,255,0.03); border-radius: 5px; margin-top: 5px; font-size: 10px; border-left: 3px solid transparent; }
+        .version-row.owned { border-left-color: var(--green); background: rgba(46, 204, 113, 0.1); }
+        .qty-controls { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 5px; }
+        .qty-btn { width: 28px; height: 28px; border-radius: 4px; border: none; color: white; cursor: pointer; font-weight: bold; }
+        
+        /* Scanner & Modals */
+        #scannerOverlay { display: none; position: fixed; inset: 0; background: black; z-index: 1000; flex-direction: column; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .series-header-sticky { background: rgba(0,0,0,0.9); border-bottom: 1px solid var(--gold); padding: 10px; text-align: center; position: sticky; top: 0; z-index: 5; display: none; }
+
+        #scanModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000; align-items: center; justify-content: center; padding: 20px; }
+        .modal-content { background: #1a1a1a; border: 2px solid var(--gold); border-radius: 15px; max-width: 400px; width: 100%; padding: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div id="statsGlobal" class="global-stats">Chargement des données...</div>
+    <div class="nav-container">
+        <input type="text" id="searchInput" placeholder="Chercher..." onkeyup="if(event.key === 'Enter') manualSearch()">
+        <button class="btn-blue" onclick="manualSearch()">🔍</button>
+        <button class="btn-purple" onclick="startScanner()">📷 SCAN</button>
+        <button class="btn-gold" onclick="showAllFolders()">📂 SÉRIES</button>
+        <button class="btn-green" onclick="viewCollection()">⭐ CLASSEUR</button>
+    </div>
+</div>
+
+<div id="scannerOverlay">
+    <video id="video" autoplay playsinline></video>
+    <div style="position:absolute; bottom:30px; width:100%; text-align:center;">
+        <button class="btn-green" onclick="captureAndScan()" style="padding:15px 30px;">ANALYSER</button>
+        <button class="btn-gold" onclick="stopScanner()" style="background:var(--red); padding:15px 30px; margin-left:10px;">FERMER</button>
+    </div>
+    <canvas id="canvas" style="display:none;"></canvas>
+</div>
+
+<div id="scanModal"><div class="modal-content" id="modalBody"></div></div>
+
+<div id="seriesHeader" class="series-header-sticky">
+    <h3 id="currentSeriesName" style="margin:0; color:var(--gold); font-size:14px;"></h3>
+    <button onclick="showAllFolders()" style="background:none; color:white; border:1px solid white; margin-top:5px; padding:3px 8px; border-radius:4px; font-size:10px;">RETOUR</button>
+</div>
+
+<div class="grid" id="mainGrid"></div>
+
+<script>
+    let db = [];
+    let myCol = JSON.parse(localStorage.getItem('ygo_stats_v12')) || {};
+    let camera = null;
+
+    window.onload = async () => {
+        try {
+            const r = await fetch('https://db.ygoprodeck.com/api/v7/cardinfo.php');
+            const data = await r.json();
+            db = data.data;
+            updateGlobalStats();
+            showAllFolders();
+        } catch(e) { alert("Erreur DB"); }
+    };
+
+    function updateGlobalStats() {
+        const totalExistantes = db.length;
+        // On compte le nombre de cartes uniques possédées (basé sur l'ID)
+        const uniqueIdsOwned = new Set();
+        Object.keys(myCol).forEach(key => uniqueIdsOwned.add(key.split('||')[0]));
+        
+        document.getElementById('statsGlobal').innerHTML = 
+            `🌍 TOTAL : <b>${uniqueIdsOwned.size}</b> / ${totalExistantes} cartes uniques | <b>${Object.values(myCol).reduce((a,b) => a + b.qty, 0)}</b> exemplaires`;
+    }
+
+    function showAllFolders() {
+        updateGlobalStats();
+        document.getElementById('seriesHeader').style.display = "none";
+        const g = document.getElementById('mainGrid'); g.innerHTML = "";
+        
+        // Calculer les stats par série
+        let setsInfo = {};
+        db.forEach(c => c.card_sets?.forEach(s => {
+            const code = s.set_code.split('-')[0];
+            if(!setsInfo[code]) setsInfo[code] = { name: s.set_name, total: 0, owned: new Set() };
+            setsInfo[code].total++;
+        }));
+
+        // Compter ce qu'on a dans chaque série
+        Object.keys(myCol).forEach(key => {
+            const [id, code] = key.split('||');
+            const seriesPrefix = code.split('-')[0];
+            if(setsInfo[seriesPrefix]) setsInfo[seriesPrefix].owned.add(id);
+        });
+
+        Object.keys(setsInfo).sort().forEach(code => {
+            const info = setsInfo[code];
+            const percent = Math.round((info.owned.size / info.total) * 100) || 0;
+            
+            const d = document.createElement('div'); d.className = 'folder';
+            d.onclick = () => openSeries(code, info.name);
+            d.innerHTML = `
+                <strong>${code}</strong><br>
+                <small style="font-size:9px; opacity:0.8;">${info.name}</small>
+                <div class="folder-stats">${info.owned.size} / ${info.total}</div>
+                <div class="progress-bar"><div class="progress-fill" style="width:${percent}%"></div></div>
+            `;
+            g.appendChild(d);
+        });
+    }
+
+    function openSeries(code, name) {
+        document.getElementById('seriesHeader').style.display = "block";
+        document.getElementById('currentSeriesName').innerText = code + " (" + name + ")";
+        const g = document.getElementById('mainGrid'); g.innerHTML = "";
+        db.filter(c => c.card_sets?.some(s => s.set_code.startsWith(code + "-")))
+          .forEach(card => renderCard(card, card.card_sets.filter(s => s.set_code.startsWith(code + "-"))));
+    }
+
+    function renderCard(card, sets) {
+        const g = document.getElementById('mainGrid');
+        const d = document.createElement('div'); d.className = 'card';
+        let v = "";
+        sets.forEach(s => {
+            const k = card.id + "||" + s.set_code;
+            const q = myCol[k]?.qty || 0;
+            v += `<div class="version-row ${q > 0 ? 'owned' : ''}">
+                    <b>${s.set_code}</b>
+                    <div class="qty-controls">
+                        <button class="qty-btn" style="background:#444" onclick="adjust('${card.id}','${s.set_code}',-1,'${card.name.replace(/'/g,"\\'")}','${card.card_images[0].image_url_small}')">-</button>
+                        <span class="qty-display" id="q-${k.replace('||','-')}">${q}</span>
+                        <button class="qty-btn" style="background:var(--blue)" onclick="adjust('${card.id}','${s.set_code}',1,'${card.name.replace(/'/g,"\\'")}','${card.card_images[0].image_url_small}')">+</button>
+                        <button class="qty-btn" style="background:var(--purple)" onclick="goToSetFromCard('${s.set_code}')">👁️</button>
+                    </div>
+                  </div>`;
+        });
+        d.innerHTML = `<img src="${card.card_images[0].image_url_small}" loading="lazy"><div><small>${card.name}</small></div>${v}`;
+        g.appendChild(d);
+    }
+
+    function adjust(id, code, delta, name, img) {
+        const k = id + "||" + code;
+        if(!myCol[k]) myCol[k] = { id, code, name, img, qty: 0 };
+        myCol[k].qty += delta;
+        if(myCol[k].qty <= 0) delete myCol[k];
+        localStorage.setItem('ygo_stats_v12', JSON.stringify(myCol));
+        
+        const disp = document.getElementById('q-' + k.replace('||','-'));
+        if(disp) {
+            disp.innerText = myCol[k]?.qty || 0;
+            disp.closest('.version-row').classList.toggle('owned', (myCol[k]?.qty > 0));
+        }
+        updateGlobalStats();
+    }
+
+    function goToSetFromCard(setCode) {
+        const prefix = setCode.split('-')[0];
+        let name = prefix;
+        db.some(c => c.card_sets?.some(s => { if(s.set_code.startsWith(prefix)) { name = s.set_name; return true; }}));
+        openSeries(prefix, name);
+    }
+
+    function manualSearch() {
+        const q = document.getElementById('searchInput').value.toUpperCase();
+        if(!q) return;
+        document.getElementById('seriesHeader').style.display = "block";
+        document.getElementById('currentSeriesName').innerText = "RÉSULTATS : " + q;
+        const g = document.getElementById('mainGrid'); g.innerHTML = "";
+        db.forEach(c => {
+            if(c.name.toUpperCase().includes(q) || (c.card_sets && c.card_sets.some(s => s.set_code.toUpperCase().includes(q)))) {
+                renderCard(c, c.card_sets || []);
+            }
+        });
+    }
+
+    function viewCollection() {
+        document.getElementById('seriesHeader').style.display = "block";
+        document.getElementById('currentSeriesName').innerText = "MON CLASSEUR";
+        const g = document.getElementById('mainGrid'); g.innerHTML = "";
+        Object.values(myCol).forEach(c => {
+            const d = document.createElement('div'); d.className = 'card';
+            d.innerHTML = `<img src="${c.img}"><div><b>${c.name}</b></div><div style="color:var(--gold)">${c.code}</div><div style="font-size:18px">x${c.qty}</div>
+            <button onclick="adjust('${c.id}','${c.code}',-1); viewCollection()" style="background:var(--red); color:white; width:100%; margin-top:5px; border-radius:5px;">SUPPRIMER</button>`;
+            g.appendChild(d);
+        });
+    }
+
+    function startScanner() {
+        document.getElementById('scannerOverlay').style.display = 'flex';
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(s => {
+            camera = s; document.getElementById('video').srcObject = s;
+        });
+    }
+
+    function stopScanner() {
+        if(camera) camera.getTracks().forEach(t => t.stop());
+        document.getElementById('scannerOverlay').style.display = 'none';
+    }
+
+    async function captureAndScan() {
+        const v = document.getElementById('video');
+        const c = document.getElementById('canvas');
+        const ctx = c.getContext('2d');
+        c.width = v.videoWidth; c.height = v.videoHeight;
+        ctx.drawImage(v, 0, 0);
+        const res = await Tesseract.recognize(c, 'eng');
+        const txt = res.data.text.toUpperCase();
+        let found = db.find(card => txt.includes(card.name.toUpperCase()));
+        if(found) { stopScanner(); showConfirmModal(found); }
+    }
+
+    function showConfirmModal(card) {
+        const m = document.getElementById('scanModal');
+        const b = document.getElementById('modalBody');
+        m.style.display = 'flex';
+        const set = card.card_sets ? card.card_sets[0] : { set_code: "???" };
+        b.innerHTML = `
+            <img src="${card.card_images[0].image_url}">
+            <h3>${card.name}</h3>
+            <button class="btn-green" style="width:100%; padding:15px;" onclick="adjust('${card.id}','${set.set_code}',1,'${card.name.replace(/'/g,"\\'")}','${card.card_images[0].image_url_small}'); document.getElementById('scanModal').style.display='none'">AJOUTER</button>
+            <button class="btn-gold" style="width:100%; background:var(--red); color:white; margin-top:10px;" onclick="document.getElementById('scanModal').style.display='none'">ANNULER</button>
+        `;
+    }
+</script>
+</body>
+</html>
