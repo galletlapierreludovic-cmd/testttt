@@ -72,7 +72,7 @@
 
 <div id="scannerOverlay">
     <video id="video" autoplay playsinline></video>
-    <div id="scanStatus" style="position:absolute; top:10%; width:100%; text-align:center; color:var(--gold); font-weight:bold;">VISEZ LE CODE SÉRIE (EX: LOB-FR001)</div>
+    <div id="scanStatus" style="position:absolute; top:10%; width:100%; text-align:center; color:var(--gold); font-weight:bold; background:rgba(0,0,0,0.5);">CADREZ LE NOM OU LE CODE SÉRIE</div>
     <div style="position:absolute; bottom:30px; width:100%; text-align:center;">
         <button id="btnCapture" class="btn-green" onclick="captureAndScan()" style="padding:15px 40px; font-size:16px;">ANALYSER</button>
         <button class="btn-gold" onclick="stopScanner()" style="background:var(--red); padding:15px 40px; margin-left:10px;">FERMER</button>
@@ -96,7 +96,6 @@
 
     window.onload = async () => {
         try {
-            // On demande la version française à l'API si disponible
             const r = await fetch('https://db.ygoprodeck.com/api/v7/cardinfo.php?language=fr');
             const data = await r.json();
             db = data.data;
@@ -151,55 +150,50 @@
         const btn = document.getElementById('btnCapture');
 
         btn.disabled = true;
-        status.innerText = "DÉCHIFFRAGE...";
+        status.innerText = "LECTURE...";
         const ctx = c.getContext('2d');
         c.width = v.videoWidth; c.height = v.videoHeight;
         
-        // Traitement pour maximiser la lecture du texte blanc/noir
-        ctx.filter = 'contrast(2) brightness(1.2) grayscale(1)';
+        ctx.filter = 'contrast(2.5) grayscale(1) brightness(0.8)';
         ctx.drawImage(v, 0, 0);
 
         try {
-            // Lecture optimisée Français + Anglais
             const res = await Tesseract.recognize(c, 'fra+eng');
-            const txt = res.data.text.toUpperCase();
+            let txt = res.data.text.toUpperCase().replace(/\s/g, ''); // On enlève les espaces pour mieux matcher les codes
             
-            // ÉTAPE 1 : On cherche d'abord via le CODE SÉRIE (LDD-FR001) car il est universel
-            let found = db.find(card => 
-                card.card_sets && card.card_sets.some(s => {
-                    let cleanCode = s.set_code.toUpperCase();
-                    return txt.includes(cleanCode) || txt.includes(cleanCode.replace('-FR', '-'));
-                })
-            );
-
-            // ÉTAPE 2 : Si pas trouvé, on cherche par le NOM (FR ou EN)
-            if(!found) {
-                found = db.find(card => card.name.length > 4 && txt.includes(card.name.toUpperCase()));
-            }
+            // LOGIQUE DE RECHERCHE ULTRA-SOUPLE
+            let found = db.find(card => {
+                // 1. On vérifie les codes séries (LDD-FR001, etc)
+                if(card.card_sets) {
+                    return card.card_sets.some(s => {
+                        let code = s.set_code.toUpperCase();
+                        // On teste le code avec et sans le tiret ou les lettres de pays (FR, EN, IT...)
+                        return txt.includes(code) || txt.includes(code.replace('-FR', '')) || txt.includes(code.replace('-', ''));
+                    });
+                }
+                // 2. On vérifie le nom
+                return card.name.length > 4 && txt.includes(card.name.toUpperCase().replace(/\s/g, ''));
+            });
 
             if(found) {
                 showConfirmModal(found);
             } else {
-                status.innerText = "NON RECONNU. ESSAYEZ DE BIEN CADRER LE CODE SÉRIE.";
-                setTimeout(() => { btn.disabled = false; status.innerText = "VISEZ LE CODE SÉRIE"; }, 3000);
+                status.innerText = "PAS TROUVÉ. APPROCHEZ LE CODE (SOUS L'IMAGE)";
+                setTimeout(() => { btn.disabled = false; status.innerText = "CADREZ LE NOM OU CODE"; }, 3000);
             }
-        } catch(e) { 
-            btn.disabled = false; 
-            status.innerText = "ERREUR TECHNIQUE";
-        }
+        } catch(e) { btn.disabled = false; }
     }
 
     function showConfirmModal(card) {
         const m = document.getElementById('scanModal');
         const b = document.getElementById('modalBody');
         m.style.display = 'flex';
-        let setsHTML = card.card_sets ? card.card_sets.map(s => `<option value="${s.set_code}">${s.set_code} (${s.set_name})</option>`).join('') : '<option value="N/A">N/A</option>';
+        let setsHTML = card.card_sets ? card.card_sets.map(s => `<option value="${s.set_code}">${s.set_code}</option>`).join('') : '<option value="N/A">N/A</option>';
         
         b.innerHTML = `
             <img src="${card.card_images[0].image_url}" style="width:100%; border-radius:10px;">
-            <h3 style="color:var(--gold); margin:10px 0;">${card.name}</h3>
-            <p style="font-size:12px;">Vérifiez l'édition détectée :</p>
-            <select id="setSel" style="width:100%; padding:10px; background:#222; color:white; border:1px solid var(--gold); margin-bottom:15px;">${setsHTML}</select>
+            <h3 style="color:var(--gold);">${card.name}</h3>
+            <select id="setSel" style="width:100%; padding:10px; margin-bottom:15px; background:#222; color:white; border:1px solid var(--gold);">${setsHTML}</select>
             <button class="btn-green" style="width:100%; padding:15px;" onclick="addFromScan('${card.id}', '${card.name.replace(/'/g," ")}', '${card.card_images[0].image_url_small}')">✅ AJOUTER</button>
             <button class="btn-purple" style="width:100%; margin-top:10px;" onclick="document.getElementById('scanModal').style.display='none'; document.getElementById('btnCapture').disabled=false;">🔄 RÉESSAYER</button>
             <button class="btn-gold" style="width:100%; background:var(--red); color:white; margin-top:10px;" onclick="stopScanner(); document.getElementById('scanModal').style.display='none'">❌ ANNULER</button>
