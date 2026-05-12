@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yu-Gi-Oh! — Collection Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --gold-dark: #8a6e2f;
+    --dark-bg: #0a0a0f;
+    --card-bg: #111118;
+    --panel-bg: #0f0f1a;
+    --surface: #161625;
+    --surface2: #1e1e30;
+    --border: rgba(201,168,76,0.18);
+    --border-hover: rgba(201,168,76,0.45);
+    --text: #e8e8f0;
+    --text-muted: #7a7a9a;
+    --text-dim: #4a4a6a;
+    --blue: #4a90d9;
+    --red: #d94a4a;
+    --green: #4ab87a;
+    --purple: #9b4ad9;
+    --orange: #d98a4a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Exo 2', sans-serif;
+    background: var(--dark-bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.03) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(74,90,217,0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10,10,15,0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+  }
+
+  .header-inner {
+    max-width: 1600px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    height: 64px;
+  }
+
+  .logo {
+    font-family: 'Cinzel', serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    text-shadow: 0 0 20px rgba(201,168,76,0.4);
+  }
+
+  .logo span { color: var(--text); font-weight: 400; }
+
+  .header-stats {
+    display: flex;
+    gap: 1.5rem;
+    margin-left: auto;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .header-stat strong {
+    color: var(--gold);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  /* ── NAV TABS ── */
+  .nav-tabs {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0 2rem;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .nav-tab {
+    padding: 0.7rem 1.4rem;
+    font-family: 'Exo 2', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    letter-spacing: 0.03em;
+  }
+
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .app-body {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 1.5rem 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── SEARCH & FILTERS ── */
+  .controls {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+    align-items: center;
+  }
+
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 240px;
+  }
+
+  .search-wrap svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  input[type="text"], select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    font-size: 0.88rem;
+    border-radius: 6px;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  input[type="text"]:focus, select:focus {
+    border-color: var(--gold-dark);
+  }
+
+  .search-wrap input {
+    width: 100%;
+    padding: 0.6rem 1rem 0.6rem 2.5rem;
+  }
+
+  select {
+    padding: 0.6rem 0.9rem;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a7a9a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 2rem;
+  }
+
+  /* ── SERIES GRID ── */
+  #series-view { display: none; }
+  .series-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .series-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+  }
+
+  .series-card:hover {
+    border-color: var(--border-hover);
+    background: var(--surface2);
+  }
+
+  .series-card.active {
+    border-color: var(--gold);
+    background: rgba(201,168,76,0.06);
+  }
+
+  .series-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--gold);
+    margin-bottom: 0.2rem;
+    letter-spacing: 0.05em;
+  }
+
+  .series-count {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+
+  .series-owned {
+    font-size: 0.7rem;
+    color: var(--green);
+    margin-top: 0.2rem;
+  }
+
+  /* ── CARDS GRID ── */
+  .section-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1rem;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.06em;
+  }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+  }
+
+  /* ── CARD ITEM ── */
+  .card-item {
+    position: relative;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.22s;
+    cursor: pointer;
+  }
+
+  .card-item:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-3px);
+  }
+
+  .card-item.owned {
+    border-color: rgba(74,184,122,0.4);
+  }
+
+  .card-item.owned::after {
+    content: '✓';
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    background: var(--green);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    color: #fff;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+  }
+
+  .card-img-wrap {
+    position: relative;
+    aspect-ratio: 59/86;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .card-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.3s;
+  }
+
+  .card-img-wrap img.loading { opacity: 0; }
+  .card-img-wrap img.loaded { opacity: 1; }
+
+  .card-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 2rem;
+  }
+
+  .card-info {
+    padding: 0.6rem 0.7rem;
+  }
+
+  .card-name {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 0.3rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-set-code {
+    font-size: 0.64rem;
+    color: var(--gold);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.2rem;
+  }
+
+  .card-type-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .badge-monster { background: rgba(217,138,74,0.2); color: var(--orange); }
+  .badge-spell   { background: rgba(74,184,122,0.2); color: var(--green); }
+  .badge-trap    { background: rgba(217,74,74,0.2);  color: var(--red); }
+  .badge-other   { background: rgba(74,90,217,0.2);  color: var(--blue); }
+
+  .card-actions {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0 0.7rem 0.7rem;
+  }
+
+  .btn-add, .btn-remove {
+    flex: 1;
+    padding: 0.4rem;
+    font-size: 0.7rem;
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid;
+    letter-spacing: 0.04em;
+  }
+
+  .btn-add {
+    background: rgba(74,184,122,0.1);
+    border-color: rgba(74,184,122,0.3);
+    color: var(--green);
+  }
+
+  .btn-add:hover {
+    background: rgba(74,184,122,0.2);
+    border-color: var(--green);
+  }
+
+  .btn-remove {
+    background: rgba(217,74,74,0.1);
+    border-color: rgba(217,74,74,0.3);
+    color: var(--red);
+  }
+
+  .btn-remove:hover {
+    background: rgba(217,74,74,0.2);
+    border-color: var(--red);
+  }
+
+  /* ── COLLECTION VIEW ── */
+  #collection-view { display: none; }
+
+  .collection-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .stat-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .stat-pill strong {
+    color: var(--gold);
+    font-size: 1rem;
+  }
+
+  /* ── LOADING ── */
+  .loading-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--text-muted);
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 1rem;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    font-family: 'Cinzel', serif;
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+    margin-bottom: 0.3rem;
+  }
+
+  /* ── EMPTY ── */
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    max-width: 480px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0.25rem;
+    transition: color 0.15s;
+    z-index: 1;
+  }
+
+  .modal-close:hover { color: var(--text); }
+
+  .modal-img {
+    width: 100%;
+    max-height: 240px;
+    object-fit: contain;
+    background: var(--surface);
+    border-radius: 8px 8px 0 0;
+  }
+
+  .modal-body { padding: 1.2rem; }
+
+  .modal-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1.1rem;
+    color: var(--gold);
+    margin-bottom: 0.25rem;
+    letter-spacing: 0.04em;
+    padding-right: 2rem;
+  }
+
+  .modal-subtitle { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+  .modal-desc {
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: var(--surface);
+    border-radius: 6px;
+    border-left: 2px solid var(--gold-dark);
+  }
+
+  .modal-sets {
+    margin-top: 1rem;
+  }
+
+  .modal-sets-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    margin-bottom: 0.6rem;
+  }
+
+  .set-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface);
+    border-radius: 6px;
+    margin-bottom: 0.4rem;
+    font-size: 0.78rem;
+    border: 1px solid var(--border);
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .set-code {
+    color: var(--gold);
+    font-weight: 600;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+
+  .set-name {
+    color: var(--text);
+    flex: 1;
+    font-size: 0.75rem;
+  }
+
+  .set-rarity {
+    color: var(--purple);
+    font-size: 0.7rem;
+    font-style: italic;
+    flex-shrink: 0;
+  }
+
+  .btn-add-set {
+    background: rgba(74,184,122,0.1);
+    border: 1px solid rgba(74,184,122,0.3);
+    color: var(--green);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 0.7rem;
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .btn-add-set:hover { background: rgba(74,184,122,0.2); border-color: var(--green); }
+  .btn-add-set.owned { background: rgba(74,184,122,0.15); border-color: var(--green); color: var(--green); }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.82rem;
+    color: var(--text);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.25s;
+    z-index: 2000;
+    pointer-events: none;
+    max-width: 280px;
+  }
+
+  #toast.show { opacity: 1; transform: translateY(0); }
+  #toast.toast-add { border-color: rgba(74,184,122,0.5); color: var(--green); }
+  #toast.toast-remove { border-color: rgba(217,74,74,0.5); color: var(--red); }
+
+  /* ── PAGINATION ── */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .page-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 4px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-family: 'Exo 2', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .page-btn:hover { border-color: var(--border-hover); color: var(--text); }
+  .page-btn.active { background: rgba(201,168,76,0.1); border-color: var(--gold); color: var(--gold); }
+  .page-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* ── TRANSLATION MAP SECTION ── */
+  .fr-name {
+    font-size: 0.65rem;
+    color: var(--blue);
+    margin-top: 1px;
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--dark-bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--gold-dark); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">Yu-Gi-Oh! <span>Collection</span></div>
+    <div class="header-stats">
+      <div class="header-stat"><strong id="stat-total-cards">—</strong> cartes totales</div>
+      <div class="header-stat"><strong id="stat-total-sets">—</strong> séries totales</div>
+      <div class="header-stat"><strong id="stat-owned">0</strong> en collection</div>
+      <div class="header-stat"><strong id="stat-owned-sets">0</strong> séries complètes</div>
+    </div>
+  </div>
+</header>
+
+<nav class="nav-tabs">
+  <button class="nav-tab active" onclick="showView('browse')">🔍 Toutes les cartes</button>
+  <button class="nav-tab" onclick="showView('series')">📚 Par série</button>
+  <button class="nav-tab" onclick="showView('collection')">⭐ Ma collection</button>
+</nav>
+
+<div class="app-body">
+
+  <!-- ── BROWSE VIEW ── -->
+  <div id="browse-view">
+    <div class="controls">
+      <div class="search-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Rechercher par nom, code (ex: MP24, LOB), FR ou EN…" oninput="onSearch()">
+      </div>
+      <select id="type-filter" onchange="onSearch()">
+        <option value="">Tous les types</option>
+        <option value="monster">Monstres</option>
+        <option value="spell">Sorts</option>
+        <option value="trap">Pièges</option>
+      </select>
+      <select id="sort-filter" onchange="onSearch()">
+        <option value="name">Nom A→Z</option>
+        <option value="id">ID numérique</option>
+        <option value="owned">Collection d'abord</option>
+      </select>
+    </div>
+    <div id="browse-results"></div>
+    <div class="pagination" id="browse-pagination"></div>
+  </div>
+
+  <!-- ── SERIES VIEW ── -->
+  <div id="series-view">
+    <div class="controls">
+      <div class="search-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="series-search" placeholder="Rechercher une série…" oninput="filterSeries()">
+      </div>
+    </div>
+    <div id="series-list" class="series-grid"></div>
+    <div id="series-cards-section" style="display:none">
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+        <button onclick="closeSeries()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:0.4rem 0.75rem;font-size:0.8rem;font-family:'Exo 2',sans-serif;cursor:pointer">← Retour</button>
+        <div class="section-title" style="margin:0;border:none;padding:0" id="series-section-title"></div>
+      </div>
+      <div id="series-cards-grid" class="cards-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── COLLECTION VIEW ── -->
+  <div id="collection-view">
+    <div class="collection-header">
+      <div class="stat-pill">Total : <strong id="coll-total">0</strong></div>
+      <div class="stat-pill">Séries : <strong id="coll-sets">0</strong></div>
+      <div class="stat-pill" style="color:var(--text-muted)">Valeur de collection</div>
+    </div>
+    <div class="controls">
+      <div class="search-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="coll-search" placeholder="Filtrer ma collection…" oninput="renderCollection()">
+      </div>
+    </div>
+    <div id="collection-by-set"></div>
+    <div class="empty-state" id="collection-empty" style="display:none">
+      ✦ Votre collection est vide. Ajoutez des cartes depuis l'onglet "Toutes les cartes" ou "Par série".
+    </div>
+  </div>
+
+</div>
+
+<!-- ── MODAL ── -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <img class="modal-img" id="modal-img" src="" alt="">
+    <div class="modal-body">
+      <div class="modal-title" id="modal-title"></div>
+      <div class="modal-subtitle" id="modal-subtitle"></div>
+      <div class="modal-desc" id="modal-desc"></div>
+      <div class="modal-sets">
+        <div class="modal-sets-title">DISPONIBLE DANS CES SÉRIES</div>
+        <div id="modal-sets-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div id="toast"></div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let allCards = [];
+let filteredCards = [];
+let allSets = {};       // setCode → { name, code, cards: Set, totalCards: number }
+let collection = {};    // key: cardId + ':' + setCode → { ... }
+let currentView = 'browse';
+let currentPage = 1;
+const PAGE_SIZE = 60;
+let searchTimeout = null;
+let currentSeriesFilter = null;
+
+// Maps: passcode (8-digit) → card, and FR name index
+const passcodeIndex = {};  // "46986414" → card
+const frNameIndex = {};    // "magicien des ténèbres" → card id
+const frNameById = {};     // card id → "magicien des ténèbres"  (reverse, for O(1) lookup)
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LOAD COLLECTION FROM LOCALSTORAGE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function loadCollection() {
+  try {
+    const saved = localStorage.getItem('ygo_collection_v2');
+    if (saved) collection = JSON.parse(saved);
+  } catch(e) { collection = {}; }
+}
+
+function saveCollection() {
+  localStorage.setItem('ygo_collection_v2', JSON.stringify(collection));
+  updateStats();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// API
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function loadCards() {
+  const el = document.getElementById('browse-results');
+  el.innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Chargement du Dueldex…</div><div style="font-size:0.8rem;color:var(--text-dim)">Récupération depuis YGOPRODeck API</div></div>`;
+
+  try {
+    allCards = [];
+    const chunkSize = 500;
+    let offset = 0;
+
+    while (true) {
+      const r = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?num=${chunkSize}&offset=${offset}&sort=name`);
+      const d = await r.json();
+      if (!d.data || d.data.length === 0) break;
+      allCards = allCards.concat(d.data);
+      el.innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Chargement du Dueldex…</div><div style="font-size:0.8rem;color:var(--text-dim)">${allCards.length.toLocaleString('fr-FR')} cartes chargées…</div></div>`;
+      if (d.data.length < chunkSize) break;
+      offset += chunkSize;
+    }
+
+    // Also load FR card names from YGOPRODeck FR language endpoint
+    el.innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Chargement des noms FR…</div><div style="font-size:0.8rem;color:var(--text-dim)">Traduction des noms de cartes en français</div></div>`;
+    await loadFrenchNames();
+
+    processCards();
+    updateStats();
+    onSearch();
+
+  } catch(e) {
+    el.innerHTML = `<div class="loading-state"><div style="color:var(--red);margin-bottom:0.5rem">⚠ Erreur de chargement</div><div style="font-size:0.8rem;color:var(--text-dim)">${e.message}</div><button onclick="loadCards()" style="margin-top:1rem;background:var(--surface);border:1px solid var(--border);color:var(--gold);border-radius:4px;padding:0.5rem 1rem;cursor:pointer;font-family:'Exo 2',sans-serif">Réessayer</button></div>`;
+  }
+}
+
+// Fetch French names from YGOPRODeck (they have a language=fr param)
+async function loadFrenchNames() {
+  try {
+    // YGOPRODeck supports &language=fr to get French card names
+    let offset = 0;
+    const chunkSize = 500;
+    while (true) {
+      const r = await fetch(`https://db.ygoprodeck.com/api/v7/cardinfo.php?num=${chunkSize}&offset=${offset}&sort=name&language=fr`);
+      const d = await r.json();
+      if (!d.data || d.data.length === 0) break;
+      d.data.forEach(card => {
+        if (card.name) {
+          const frLow = card.name.toLowerCase();
+          frNameIndex[frLow] = card.id;
+          frNameById[card.id] = frLow; // reverse map for O(1) getFrName
+        }
+      });
+      if (d.data.length < chunkSize) break;
+      offset += chunkSize;
+    }
+  } catch(e) {
+    // FR names optional — silently ignore
+  }
+}
+
+function processCards() {
+  allSets = {};
+  allCards.forEach(card => {
+    // Build passcode index (card.id IS the passcode — the 8-digit number on the card)
+    const pc = String(card.id).padStart(8, '0');
+    passcodeIndex[pc] = card;
+    passcodeIndex[String(card.id)] = card; // also without padding
+
+    if (card.card_sets) {
+      card.card_sets.forEach(s => {
+        const rawCode = s.set_code.toUpperCase();
+        const setCode = rawCode.split('-')[0];
+        if (!allSets[setCode]) {
+          allSets[setCode] = { name: s.set_name, code: setCode, cards: new Set(), totalCards: 0 };
+        }
+        allSets[setCode].cards.add(card.id);
+      });
+    }
+  });
+
+  // Compute totalCards per set from actual API set data
+  Object.values(allSets).forEach(s => { s.totalCards = s.cards.size; });
+
+  buildSeriesView();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FR → EN TRANSLATION ENGINE
+// Handles: code FR (mp25-fr405 → mp25-en405 style matching)
+//          nom FR complet (Magicien des Ténèbres → Dark Magician)
+//          passcode 8 chiffres
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Normalize a set code: replace language suffix FR/DE/IT/PT/SP → EN
+// mp25-fr405 → mp25-405 (for matching against set prefix)
+function normalizeSetCode(code) {
+  return code.toUpperCase()
+    .replace(/-FR(\d)/i, '-$1')
+    .replace(/-DE(\d)/i, '-$1')
+    .replace(/-IT(\d)/i, '-$1')
+    .replace(/-PT(\d)/i, '-$1')
+    .replace(/-SP(\d)/i, '-$1')
+    .replace(/-JP(\d)/i, '-$1')
+    .replace(/-JA(\d)/i, '-$1');
+}
+
+// Extract set prefix and number from a code like "MP25-FR405" → { prefix: "MP25", num: "405" }
+function parseSetCode(code) {
+  const m = code.toUpperCase().match(/^([A-Z0-9]+)-(?:[A-Z]{0,2})(\d+)$/);
+  if (m) return { prefix: m[1], num: m[2] };
+  return null;
+}
+
+// Extensive FR → EN word map
+const frToEnMap = {
+  'magicien des ténèbres': 'dark magician',
+  'magicien des tenebres': 'dark magician',
+  'dragon aux yeux bleus': 'blue-eyes white dragon',
+  'dragon blanc aux yeux bleus': 'blue-eyes white dragon',
+  'exodia le défendu': 'exodia the forbidden one',
+  'exodia le defendu': 'exodia the forbidden one',
+  'harpie dame': 'harpie lady',
+  'dragon rouge aux yeux noirs': 'red-eyes black dragon',
+  'magicienne noire': 'dark magician girl',
+  'dragon ailé de ra': 'winged dragon of ra',
+  'le dragon ailé de ra': 'winged dragon of ra',
+  'obelisk le tourmenteur': 'obelisk the tormentor',
+  'obélisk le tourmenteur': 'obelisk the tormentor',
+  'slifer le dragon céleste': 'slifer the sky dragon',
+  'slifer le dragon celeste': 'slifer the sky dragon',
+  'buster blader': 'buster blader',
+  'chevalier du chaos': 'chaos knight',
+  // Parts
+  'magicien': 'magician', 'sombre': 'dark', 'guerrier': 'warrior',
+  'dragon': 'dragon', 'héros': 'hero', 'heros': 'hero',
+  'chevalier': 'knight', 'roi': 'king', 'reine': 'queen',
+  'soleil': 'sun', 'lune': 'moon', 'étoile': 'star', 'etoile': 'star',
+  'flamme': 'flame', 'feu': 'fire', 'eau': 'water', 'terre': 'earth',
+  'vent': 'wind', 'lumiere': 'light', 'lumière': 'light',
+  'tenebres': 'dark', 'ténèbres': 'dark', 'magie': 'spell',
+  'piege': 'trap', 'piège': 'trap', 'monstre': 'monster',
+  'geant': 'giant', 'géant': 'giant', 'gobelin': 'goblin',
+  'elfe': 'elf', 'fee': 'fairy', 'fée': 'fairy',
+  'demon': 'fiend', 'démon': 'fiend', 'zombie': 'zombie',
+  'machine': 'machine', 'rocher': 'rock', 'insecte': 'insect',
+  'plante': 'plant', 'serpent': 'serpent', 'poisson': 'fish',
+  'tonnerre': 'thunder', 'oeil': 'eye', 'œil': 'eye',
+  'aile': 'wing', 'ailé': 'winged', 'ailes': 'wings',
+  'noire': 'black', 'noir': 'black', 'blanc': 'white', 'blanche': 'white',
+  'rouge': 'red', 'bleu': 'blue', 'bleue': 'blue', 'vert': 'green',
+  'verte': 'green', 'jaune': 'yellow', 'violet': 'purple',
+  'argent': 'silver', 'doré': 'golden', 'dore': 'golden',
+  'ancien': 'ancient', 'mécanique': 'mechanical', 'mecanique': 'mechanical',
+  'élémentaire': 'elemental', 'elementaire': 'elemental',
+  'galaxie': 'galaxy', 'chaos': 'chaos', 'cristal': 'crystal',
+  'fantome': 'phantom', 'fantôme': 'phantom', 'spectre': 'ghost',
+  'néo': 'neo', 'neo': 'neo', 'ultra': 'ultra', 'super': 'super',
+  'rituel': 'ritual', 'fusion': 'fusion', 'synchro': 'synchro',
+  'xyz': 'xyz', 'lien': 'link', 'pendule': 'pendulum',
+  'effet': 'effect', 'rapide': 'quick', 'continue': 'continuous',
+  'champ': 'field', 'equipement': 'equip', 'équipement': 'equip',
+  'ange': 'angel', 'reptile': 'reptile', 'dinosaure': 'dinosaur',
+  'bête': 'beast', 'bete': 'beast', 'bête ailée': 'winged beast',
+  'cyber': 'cyber', 'cosmos': 'cosmos', 'nécro': 'necro', 'necro': 'necro',
+  'hieratique': 'hieratic', 'hiératique': 'hieratic',
+  'numeron': 'numeron', 'numéro': 'number', 'numero': 'number',
+  'galaxie': 'galaxy', 'photon': 'photon', 'stellaire': 'stellar',
+  'céleste': 'celestial', 'celeste': 'celestial',
+  'seigneur': 'lord', 'maître': 'master', 'maitre': 'master',
+  'guerrier': 'warrior', 'soldat': 'soldier', 'gardien': 'guardian',
+  'titan': 'titan', 'colosse': 'colossus', 'géant': 'giant',
+};
+
+function frToEnSearch(q) {
+  let result = q.toLowerCase().trim();
+  // Remove accents for fuzzy matching
+  const noAccent = result.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Try full phrase matches first (longest first)
+  const sorted = Object.entries(frToEnMap).sort((a,b) => b[0].length - a[0].length);
+  for (const [fr, en] of sorted) {
+    const frNorm = fr.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (result.includes(fr) || noAccent.includes(frNorm)) {
+      result = result.replace(new RegExp(fr.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'), en);
+    }
+  }
+  return result;
+}
+
+function cardMatchesQuery(card, rawQuery) {
+  if (!rawQuery) return true;
+  const q = rawQuery.trim();
+  const qLow = q.toLowerCase();
+
+  // ── 1. PASSCODE (8-digit number on bottom-left of card) ──
+  // Card id IS the passcode. Match if query is purely numeric
+  if (/^\d{4,8}$/.test(q.replace(/\s/g,''))) {
+    const numQ = q.replace(/\s/g,'');
+    const cardPc = String(card.id).padStart(8,'0');
+    if (cardPc.includes(numQ) || String(card.id).includes(numQ)) return true;
+  }
+
+  // ── 2. SET CODE with FR/DE/IT suffix translation ──
+  // e.g. MP25-FR405 → match card that has MP25-EN405
+  const parsedQ = parseSetCode(q.replace(/\s/g,''));
+  if (parsedQ && card.card_sets) {
+    for (const s of card.card_sets) {
+      const parsedS = parseSetCode(s.set_code);
+      if (parsedS && parsedS.prefix === parsedQ.prefix && parsedS.num === parsedQ.num) return true;
+    }
+  }
+
+  // ── 3. Raw set code match (EN or any language) ──
+  if (card.card_sets) {
+    for (const s of card.card_sets) {
+      const sc = s.set_code.toLowerCase();
+      if (sc.includes(qLow)) return true;
+      // Also match normalized (strip language suffix)
+      const norm = normalizeSetCode(s.set_code).toLowerCase();
+      const qNorm = normalizeSetCode(q).toLowerCase();
+      if (norm.includes(qNorm)) return true;
+      if (s.set_name && s.set_name.toLowerCase().includes(qLow)) return true;
+    }
+  }
+
+  // ── 4. FR name index (from API FR language fetch) ──
+  const frId = frNameIndex[qLow];
+  if (frId !== undefined && frId === card.id) return true;
+  // Partial FR name match using reverse map (O(1) per card)
+  const cardFrName = frNameById[card.id];
+  if (cardFrName && cardFrName.includes(qLow)) return true;
+
+  // ── 5. EN name direct ──
+  const name = (card.name || '').toLowerCase();
+  if (name.includes(qLow)) return true;
+
+  // ── 6. FR → EN translation then EN name match ──
+  const qEn = frToEnSearch(qLow);
+  if (qEn !== qLow && name.includes(qEn)) return true;
+
+  // ── 7. Attribute / race / type ──
+  if ((card.type||'').toLowerCase().includes(qLow)) return true;
+  if ((card.race||'').toLowerCase().includes(qLow)) return true;
+  if ((card.attribute||'').toLowerCase().includes(qLow)) return true;
+
+  // ── 8. Description keyword (EN + translated) ──
+  if ((card.desc||'').toLowerCase().includes(qEn)) return true;
+
+  return false;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SEARCH + FILTER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function onSearch() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    currentPage = 1;
+    applyFilters();
+  }, 300);
+}
+
+function applyFilters() {
+  if (!allCards.length) return; // cards not loaded yet
+  const q = document.getElementById('search-input').value;
+  const typeF = document.getElementById('type-filter').value;
+  const sort = document.getElementById('sort-filter').value;
+
+  filteredCards = allCards.filter(card => {
+    if (!cardMatchesQuery(card, q)) return false;
+    if (typeF === 'monster' && !card.type.toLowerCase().includes('monster')) return false;
+    if (typeF === 'spell' && !card.type.toLowerCase().includes('spell')) return false;
+    if (typeF === 'trap' && !card.type.toLowerCase().includes('trap')) return false;
+    return true;
+  });
+
+  if (sort === 'name') filteredCards.sort((a,b) => a.name.localeCompare(b.name));
+  else if (sort === 'id') filteredCards.sort((a,b) => a.id - b.id);
+  else if (sort === 'owned') {
+    filteredCards.sort((a,b) => {
+      const ao = isOwned(a) ? 1 : 0;
+      const bo = isOwned(b) ? 1 : 0;
+      return bo - ao || a.name.localeCompare(b.name);
+    });
+  }
+
+  renderBrowse();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RENDER BROWSE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderBrowse() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageCards = filteredCards.slice(start, start + PAGE_SIZE);
+  const totalPages = Math.ceil(filteredCards.length / PAGE_SIZE);
+
+  const el = document.getElementById('browse-results');
+  if (filteredCards.length === 0) {
+    el.innerHTML = '<div class="empty-state">Aucune carte trouvée. Essayez un nom FR, un code série (ex : MP25-FR405), ou le numéro à 8 chiffres.</div>';
+    document.getElementById('browse-pagination').innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem">
+      ${filteredCards.length.toLocaleString('fr-FR')} cartes trouvées
+    </div>
+    <div class="cards-grid">${pageCards.map(c => cardHTML(c)).join('')}</div>
+  `;
+
+  renderPagination(totalPages, 'browse-pagination');
+}
+
+function getFrName(card) {
+  return frNameById[card.id] || null;
+}
+
+function cardHTML(card, inSeries) {
+  const img = card.card_images && card.card_images[0] ? card.card_images[0].image_url_small : '';
+  const owned = isOwned(card);
+  const type = card.type || '';
+  const typeLow = type.toLowerCase();
+  let badgeClass = 'badge-other', badgeLabel = 'Autre';
+  if (typeLow.includes('monster')) { badgeClass = 'badge-monster'; badgeLabel = 'Monstre'; }
+  else if (typeLow.includes('spell')) { badgeClass = 'badge-spell'; badgeLabel = 'Sort'; }
+  else if (typeLow.includes('trap')) { badgeClass = 'badge-trap'; badgeLabel = 'Piège'; }
+
+  const firstSet = card.card_sets && card.card_sets[0];
+  const setCode = firstSet ? firstSet.set_code : '';
+  const passcode = String(card.id).padStart(8, '0');
+  const frName = getFrName(card);
+
+  return `<div class="card-item${owned ? ' owned' : ''}" id="ci-${card.id}">
+    <div class="card-img-wrap" onclick="openModal(${card.id})">
+      <div class="card-placeholder">🃏</div>
+      ${img ? `<img src="${img}" alt="${escHtml(card.name)}" loading="lazy" onload="this.classList.add('loaded')" onerror="this.style.display='none'">` : ''}
+    </div>
+    <div class="card-info" onclick="openModal(${card.id})" style="cursor:pointer">
+      <div class="card-name">${escHtml(card.name)}</div>
+      ${frName ? `<div class="fr-name" title="Nom français">🇫🇷 ${escHtml(capitalize(frName))}</div>` : ''}
+      ${setCode ? `<div class="card-set-code">${escHtml(setCode)}</div>` : ''}
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:3px">
+        <span class="card-type-badge ${badgeClass}">${badgeLabel}</span>
+        <span style="font-size:0.58rem;color:var(--text-dim);font-family:monospace;letter-spacing:0.02em">${passcode}</span>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="btn-add" onclick="quickAdd(${card.id})">+ Ajouter</button>
+      <button class="btn-remove" onclick="quickRemove(${card.id})">− Retirer</button>
+    </div>
+  </div>`;
+}
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SERIES — with total card count per set
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function buildSeriesView() {
+  const container = document.getElementById('series-list');
+  const sortedSets = Object.values(allSets).sort((a,b) => a.code.localeCompare(b.code));
+
+  container.innerHTML = sortedSets.map(s => {
+    const ownedKeys = Object.keys(collection).filter(k => {
+      const c = collection[k];
+      return c.setCode === s.code;
+    });
+    const ownedCount = ownedKeys.length;
+    const total = s.totalCards;
+    const pct = total > 0 ? Math.round((ownedCount / total) * 100) : 0;
+
+    return `<div class="series-card" onclick="openSeries('${escHtml(s.code)}')">
+      <div class="series-name">${escHtml(s.code)}</div>
+      <div class="series-count" title="${escHtml(s.name)}">${escHtml(s.name.length > 28 ? s.name.slice(0,26)+'…' : s.name)}</div>
+      <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+        <div style="flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${pct===100?'var(--green)':'var(--gold)'};transition:width 0.3s"></div>
+        </div>
+        <span style="font-size:0.65rem;color:var(--text-dim);white-space:nowrap">${ownedCount}/${total}</span>
+      </div>
+      ${ownedCount > 0 ? `<div class="series-owned">✓ ${ownedCount} carte${ownedCount>1?'s':''} · ${pct}%</div>` : ''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('stat-total-sets').textContent = sortedSets.length.toLocaleString('fr-FR');
+}
+
+function filterSeries() {
+  const q = document.getElementById('series-search').value.toLowerCase();
+  const cards = document.querySelectorAll('#series-list .series-card');
+  cards.forEach(el => {
+    const text = el.textContent.toLowerCase();
+    el.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+
+function openSeries(code) {
+  currentSeriesFilter = code;
+  const set = allSets[code];
+  if (!set) return;
+
+  document.getElementById('series-list').style.display = 'none';
+  document.querySelector('#series-view .controls').style.display = 'none';
+  const section = document.getElementById('series-cards-section');
+  section.style.display = 'block';
+
+  const ownedInSet = Object.keys(collection).filter(k => collection[k].setCode === code).length;
+  document.getElementById('series-section-title').innerHTML =
+    `${escHtml(code)} — ${escHtml(set.name)}
+     <span style="font-size:0.75rem;color:var(--text-muted);font-family:'Exo 2',sans-serif;font-weight:400">
+       &nbsp;·&nbsp; ${set.totalCards} cartes totales &nbsp;·&nbsp;
+       <span style="color:var(--green)">${ownedInSet} possédées</span>
+     </span>`;
+
+  const cardsInSet = allCards.filter(c => {
+    if (!c.card_sets) return false;
+    return c.card_sets.some(s => s.set_code.split('-')[0].toUpperCase() === code);
+  });
+
+  cardsInSet.sort((a,b) => {
+    const sa = a.card_sets.find(s => s.set_code.split('-')[0].toUpperCase() === code);
+    const sb = b.card_sets.find(s => s.set_code.split('-')[0].toUpperCase() === code);
+    return (sa ? sa.set_code : '').localeCompare(sb ? sb.set_code : '');
+  });
+
+  const grid = document.getElementById('series-cards-grid');
+  grid.innerHTML = cardsInSet.map(c => cardHTML(c, true)).join('');
+}
+
+function closeSeries() {
+  currentSeriesFilter = null;
+  document.getElementById('series-list').style.display = '';
+  document.querySelector('#series-view .controls').style.display = '';
+  document.getElementById('series-cards-section').style.display = 'none';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COLLECTION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function isOwned(card) {
+  return Object.keys(collection).some(k => k.startsWith(card.id + ':'));
+}
+
+function quickAdd(cardId) {
+  const card = allCards.find(c => c.id === cardId);
+  if (!card) return;
+  if (card.card_sets && card.card_sets.length > 0) {
+    if (card.card_sets.length === 1) {
+      addToCollection(card, card.card_sets[0]);
+    } else {
+      openModal(cardId);
+    }
+  } else {
+    addToCollection(card, null);
+  }
+}
+
+function quickRemove(cardId) {
+  const card = allCards.find(c => c.id === cardId);
+  if (!card) return;
+  const keys = Object.keys(collection).filter(k => k.startsWith(cardId + ':'));
+  if (keys.length === 0) { toast('Carte non trouvée dans votre collection', 'remove'); return; }
+  keys.forEach(k => delete collection[k]);
+  saveCollection();
+  refreshCardUI(card);
+  toast('Carte(s) retirée(s) de la collection', 'remove');
+}
+
+function addToCollection(card, set) {
+  const setCode = set ? set.set_code.split('-')[0].toUpperCase() : 'UNKNOWN';
+  const key = card.id + ':' + (set ? set.set_code : 'NONE');
+  collection[key] = {
+    id: card.id,
+    name: card.name,
+    type: card.type,
+    image: card.card_images && card.card_images[0] ? card.card_images[0].image_url_small : '',
+    setCode: setCode,
+    setName: set ? set.set_name : 'Inconnu',
+    fullSetCode: set ? set.set_code : 'NONE',
+    rarity: set ? set.set_rarity : '',
+    passcode: String(card.id).padStart(8,'0'),
+  };
+  saveCollection();
+  refreshCardUI(card);
+  toast(`✓ ${card.name} ajoutée à la collection !`, 'add');
+}
+
+function removeFromCollectionKey(key) {
+  if (!collection[key]) return;
+  const name = collection[key].name;
+  delete collection[key];
+  saveCollection();
+  const cardId = key.split(':')[0];
+  const card = allCards.find(c => c.id == cardId);
+  if (card) refreshCardUI(card);
+  renderCollection();
+  toast(`Retirée : ${name}`, 'remove');
+}
+
+function refreshCardUI(card) {
+  const el = document.getElementById('ci-' + card.id);
+  if (el) {
+    if (isOwned(card)) el.classList.add('owned');
+    else el.classList.remove('owned');
+  }
+  // Also refresh series view if open
+  if (currentSeriesFilter) {
+    const gridEl = document.getElementById('series-cards-grid');
+    const item = gridEl ? gridEl.querySelector(`#ci-${card.id}`) : null;
+    if (item) {
+      if (isOwned(card)) item.classList.add('owned');
+      else item.classList.remove('owned');
+    }
+  }
+}
+
+function renderCollection() {
+  const q = document.getElementById('coll-search').value.toLowerCase();
+  const items = Object.entries(collection).filter(([key, c]) => {
+    if (!q) return true;
+    return c.name.toLowerCase().includes(q)
+      || c.setCode.toLowerCase().includes(q)
+      || c.setName.toLowerCase().includes(q)
+      || (c.passcode && c.passcode.includes(q))
+      || (c.fullSetCode && c.fullSetCode.toLowerCase().includes(q));
+  });
+
+  const bySet = {};
+  items.forEach(([key, c]) => {
+    if (!bySet[c.setCode]) bySet[c.setCode] = { name: c.setName, items: [], total: (allSets[c.setCode]||{}).totalCards || 0 };
+    bySet[c.setCode].items.push({ key, ...c });
+  });
+
+  document.getElementById('coll-total').textContent = items.length;
+  document.getElementById('coll-sets').textContent = Object.keys(bySet).length;
+  document.getElementById('stat-owned').textContent = Object.keys(collection).length;
+
+  const container = document.getElementById('collection-by-set');
+  const empty = document.getElementById('collection-empty');
+
+  if (items.length === 0) {
+    container.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  const sortedSets = Object.entries(bySet).sort(([a],[b]) => a.localeCompare(b));
+
+  container.innerHTML = sortedSets.map(([code, set]) => {
+    const pct = set.total > 0 ? Math.round((set.items.length / set.total)*100) : 0;
+    return `
+    <div style="margin-bottom:2rem">
+      <div class="section-title">
+        ${escHtml(code)} — ${escHtml(set.name)}
+        <span style="font-size:0.75rem;color:var(--text-muted);font-family:'Exo 2',sans-serif;font-weight:400">
+          &nbsp;·&nbsp; ${set.items.length} / ${set.total} cartes
+          ${pct > 0 ? `&nbsp;·&nbsp; <span style="color:${pct===100?'var(--green)':'var(--gold)'}">${pct}%</span>` : ''}
+        </span>
+      </div>
+      <div class="cards-grid">
+        ${set.items.map(item => `
+          <div class="card-item owned">
+            <div class="card-img-wrap">
+              <div class="card-placeholder">🃏</div>
+              ${item.image ? `<img src="${escHtml(item.image)}" alt="${escHtml(item.name)}" loading="lazy" onload="this.classList.add('loaded')" onerror="this.style.display='none'">` : ''}
+            </div>
+            <div class="card-info">
+              <div class="card-name">${escHtml(item.name)}</div>
+              <div class="card-set-code">${escHtml(item.fullSetCode)}</div>
+              ${item.rarity ? `<div style="font-size:0.6rem;color:var(--purple);font-style:italic">${escHtml(item.rarity)}</div>` : ''}
+              <div style="font-size:0.58rem;color:var(--text-dim);font-family:monospace;margin-top:2px">${escHtml(item.passcode||'')}</div>
+            </div>
+            <div class="card-actions">
+              <button class="btn-remove" onclick="removeFromCollectionKey('${escHtml(item.key)}')" style="flex:none;width:100%">− Retirer</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MODAL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function openModal(cardId) {
+  const card = allCards.find(c => c.id === cardId);
+  if (!card) return;
+
+  const passcode = String(card.id).padStart(8,'0');
+  const frName = getFrName(card);
+
+  document.getElementById('modal-img').src = card.card_images && card.card_images[0] ? card.card_images[0].image_url : '';
+  document.getElementById('modal-title').textContent = card.name;
+  document.getElementById('modal-subtitle').innerHTML =
+    `${frName ? `<span style="color:var(--blue)">🇫🇷 ${escHtml(capitalize(frName))}</span> &nbsp;·&nbsp; ` : ''}` +
+    `${card.type||''}${card.attribute ? ' · ' + card.attribute : ''}${card.race ? ' · ' + card.race : ''}` +
+    `${card.level ? ' · Niv. ' + card.level : ''}` +
+    `${card.atk !== undefined ? ' · ATK ' + card.atk + ' / DEF ' + card.def : ''}` +
+    `<br><span style="font-family:monospace;font-size:0.75rem;color:var(--text-dim)">Passcode : ${passcode}</span>`;
+  document.getElementById('modal-desc').textContent = card.desc || '';
+
+  const setsList = document.getElementById('modal-sets-list');
+  if (card.card_sets && card.card_sets.length > 0) {
+    const sets = [...card.card_sets].sort((a,b) => a.set_code.localeCompare(b.set_code));
+    setsList.innerHTML = sets.map(s => {
+      const key = card.id + ':' + s.set_code;
+      const owned = !!collection[key];
+      const setPrefix = s.set_code.split('-')[0];
+      const setTotal = allSets[setPrefix] ? allSets[setPrefix].totalCards : '?';
+      return `<div class="set-row">
+        <span class="set-code">${escHtml(s.set_code)}</span>
+        <span class="set-name">${escHtml(s.set_name)} <span style="font-size:0.65rem;color:var(--text-dim)">(${setTotal} cartes)</span></span>
+        <span class="set-rarity">${escHtml(s.set_rarity || '')}</span>
+        <button class="btn-add-set${owned ? ' owned' : ''}" onclick="addFromModal(${card.id}, '${escHtml(s.set_code)}', '${escHtml(s.set_name)}', '${escHtml(s.set_rarity || '')}')">
+          ${owned ? '✓ Possédée' : '+ Ajouter'}
+        </button>
+      </div>`;
+    }).join('');
+  } else {
+    setsList.innerHTML = '<div style="font-size:0.8rem;color:var(--text-dim)">Aucune série connue</div>';
+  }
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function addFromModal(cardId, setCode, setName, rarity) {
+  const card = allCards.find(c => c.id === cardId);
+  if (!card) return;
+  addToCollection(card, { set_code: setCode, set_name: setName, set_rarity: rarity });
+  const buttons = document.querySelectorAll('#modal-sets-list .btn-add-set');
+  buttons.forEach(btn => {
+    const row = btn.closest('.set-row');
+    const code = row.querySelector('.set-code').textContent;
+    const key = cardId + ':' + code;
+    if (collection[key]) {
+      btn.classList.add('owned');
+      btn.textContent = '✓ Possédée';
+    }
+  });
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function updateStats() {
+  document.getElementById('stat-total-cards').textContent = allCards.length.toLocaleString('fr-FR');
+  document.getElementById('stat-owned').textContent = Object.keys(collection).length.toLocaleString('fr-FR');
+  const ownedSetCodes = new Set(Object.values(collection).map(c => c.setCode));
+  document.getElementById('stat-owned-sets').textContent = ownedSetCodes.size;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// VIEW SWITCHING
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function showView(view) {
+  ['browse', 'series', 'collection'].forEach(v => {
+    document.getElementById(v + '-view').style.display = v === view ? 'block' : 'none';
+  });
+  document.querySelectorAll('.nav-tab').forEach((el, i) => {
+    el.classList.toggle('active', ['browse','series','collection'][i] === view);
+  });
+  currentView = view;
+  if (view === 'collection') renderCollection();
+  if (view === 'series') { closeSeries(); buildSeriesView(); }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PAGINATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderPagination(total, containerId) {
+  const el = document.getElementById(containerId || 'browse-pagination');
+  if (total <= 1) { el.innerHTML = ''; return; }
+  let html = '';
+  html += `<button class="page-btn" onclick="setPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹ Préc.</button>`;
+  const range = [];
+  for (let i = Math.max(1,currentPage-2); i <= Math.min(total,currentPage+2); i++) range.push(i);
+  if (range[0] > 1) { html += `<button class="page-btn" onclick="setPage(1)">1</button>`; if (range[0]>2) html += '<span style="color:var(--text-dim);padding:0 4px">…</span>'; }
+  range.forEach(p => { html += `<button class="page-btn${p===currentPage?' active':''}" onclick="setPage(${p})">${p}</button>`; });
+  if (range[range.length-1] < total) { if (range[range.length-1]<total-1) html += '<span style="color:var(--text-dim);padding:0 4px">…</span>'; html += `<button class="page-btn" onclick="setPage(${total})">${total}</button>`; }
+  html += `<button class="page-btn" onclick="setPage(${currentPage+1})" ${currentPage===total?'disabled':''}>Suiv. ›</button>`;
+  el.innerHTML = html;
+}
+
+function setPage(p) {
+  currentPage = p;
+  renderBrowse();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOAST
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let toastTimeout;
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show toast-' + (type || 'add');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => { el.className = ''; }, 2800);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// UTILS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// KEYBOARD SHORTCUTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.key === '/' || e.key === 'f') && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    document.getElementById('search-input').focus();
+  }
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+loadCollection();
+showView('browse');
+loadCards();
+</script>
+</body>
+</html>
